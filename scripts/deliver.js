@@ -4,7 +4,7 @@
 // Follow Builders — Delivery Script
 // ============================================================================
 // Sends a digest to the user via their chosen delivery method.
-// Supports: Telegram bot, Email (via Resend), or stdout (default).
+// Supports: Telegram bot, Email (via SMTP), or stdout (default).
 //
 // Usage:
 //   echo "digest text" | node deliver.js
@@ -16,7 +16,7 @@
 //
 // Delivery methods:
 //   - "telegram": sends via Telegram Bot API (needs TELEGRAM_BOT_TOKEN + chat ID)
-//   - "email": sends via Resend API (needs RESEND_API_KEY + email address)
+//   - "email": sends via SMTP (needs SMTP_* env vars + email address in config)
 //   - "stdout" (default): just prints to terminal
 // ============================================================================
 
@@ -25,6 +25,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { config as loadEnv } from 'dotenv';
+import { createTransport } from 'nodemailer';
 
 // -- Constants ---------------------------------------------------------------
 
@@ -122,31 +123,41 @@ async function sendTelegram(text, botToken, chatId) {
   }
 }
 
-// -- Email Delivery (Resend) -------------------------------------------------
+// -- Email Delivery (SMTP) ---------------------------------------------------
 
-// Sends the digest via Resend's email API.
-// The user provides their own Resend API key and email address.
-async function sendEmail(text, apiKey, toEmail) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      from: 'AI Builders Digest <digest@resend.dev>',
-      to: [toEmail],
-      subject: `AI Builders Digest — ${new Date().toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      })}`,
-      text: text
-    })
+// Sends the digest via SMTP (supports QQ Mail, Gmail, any SMTP server).
+// Configure SMTP_* env vars in ~/.follow-builders/.env:
+//   SMTP_HOST=smtp.qq.com
+//   SMTP_PORT=465
+//   SMTP_USER=your_email@qq.com
+//   SMTP_PASS=authorization_code (NOT your QQ password)
+//   SMTP_FROM=AI Builders Digest <your_email@qq.com>
+async function sendEmail(text, toEmail) {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || user;
+
+  if (!host) throw new Error('SMTP_HOST not found in .env');
+  if (!user) throw new Error('SMTP_USER not found in .env');
+  if (!pass) throw new Error('SMTP_PASS not found in .env');
+
+  const transporter = createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass }
   });
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(`Resend API error: ${err.message || JSON.stringify(err)}`);
-  }
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject: `AI Builders Digest — ${new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    })}`,
+    text
+  });
 }
 
 // -- Main --------------------------------------------------------------------
@@ -185,11 +196,9 @@ async function main() {
       }
 
       case 'email': {
-        const apiKey = process.env.RESEND_API_KEY;
         const toEmail = delivery.email;
-        if (!apiKey) throw new Error('RESEND_API_KEY not found in .env');
         if (!toEmail) throw new Error('delivery.email not found in config.json');
-        await sendEmail(digestText, apiKey, toEmail);
+        await sendEmail(digestText, toEmail);
         console.log(JSON.stringify({
           status: 'ok',
           method: 'email',
