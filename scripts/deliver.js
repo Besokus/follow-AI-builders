@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 // ============================================================================
-// Follow Builders — Delivery Script
+// Follow Builders 鈥?Delivery Script
 // ============================================================================
 // Sends a digest to the user via their chosen delivery method.
 // Supports: Telegram bot, Email (via SMTP), or stdout (default).
@@ -153,7 +153,7 @@ async function sendEmail(text, toEmail) {
   await transporter.sendMail({
     from,
     to: toEmail,
-    subject: `AI Builders Digest — ${new Date().toLocaleDateString('en-US', {
+    subject: `AI Builders Digest 鈥?${new Date().toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     })}`,
     text
@@ -209,7 +209,7 @@ async function main() {
 
       case 'stdout':
       default:
-        // Just print to terminal — the agent or OpenClaw handles delivery
+        // Just print to terminal 鈥?the agent or OpenClaw handles delivery
         console.log(digestText);
         break;
     }
@@ -224,3 +224,4 @@ async function main() {
 }
 
 main();
+
