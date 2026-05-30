@@ -168,10 +168,21 @@ async function main() {
 
   let config = {};
   if (existsSync(CONFIG_PATH)) {
-    config = JSON.parse(await readFile(CONFIG_PATH, 'utf-8'));
+    try {
+      config = JSON.parse(await readFile(CONFIG_PATH, 'utf-8'));
+    } catch (_) { /* ignore parse errors in cloud env */ }
   }
 
-  const delivery = config.delivery || { method: 'stdout' };
+  // Cloud/GitHub Actions fallback: config.json may not exist.
+  // Use env vars SMTP_HOST + TO_EMAIL to trigger email delivery.
+  let delivery = config.delivery;
+  if (!delivery || delivery.method === 'stdout') {
+    if (process.env.SMTP_HOST && process.env.TO_EMAIL) {
+      delivery = { method: 'email', email: process.env.TO_EMAIL };
+    } else {
+      delivery = delivery || { method: 'stdout' };
+    }
+  }
   const digestText = await getDigestText();
 
   if (!digestText || digestText.trim().length === 0) {
